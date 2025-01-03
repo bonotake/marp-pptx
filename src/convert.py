@@ -81,7 +81,7 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
     slides = content.split('---')
     
     # フロントマターを除去（最初の要素を無視）
-    slides = slides[2:]
+    slides = slides[2:]  # 最初の2つの要素（空要素とフロントマター）を除外
     
     # CSSスタイルを解析
     style_definitions = {}
@@ -104,6 +104,8 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
         # 空のスライドをスキップ
         if not slide_content.strip():
             continue
+        
+        print(f"=== Slide {i} ===")
         
         # 全体を1つの文字列として処理
         content = '\n'.join(slide_content.strip().split('\n'))
@@ -137,27 +139,45 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
         # タイトルを探す（# で始まる最初の行）
         title = ""
         content_lines = []
+        
+        # タイトルプレースホルダーを取得
+        title_shape = slide.shapes.title
+        text_frame = None
+        
         for line in lines:
             # h1（#）をスライドタイトルとして処理
             if not title and line.strip().startswith('# '):
+                print(f"Found title: '{line}'")
                 title = line.strip('#').strip()
             # h2-h6（## ～ ######）を本文の見出しとして処理
             elif line.strip().startswith('#'):
+                print(f"Found heading: '{line}'")
                 heading_level = len(line.split()[0])  # #の数を数える
                 content = line.strip('#').strip()
-                p = text_frame.add_paragraph()
-                apply_text_styles(p, content)
-                # 見出しレベルに応じてスタイルを設定
-                if heading_level == 2:  # h2
-                    p.font.size = Pt(32)
-                    p.font.bold = True
-                elif heading_level == 3:  # h3
-                    p.font.size = Pt(28)
-                    p.font.bold = True
-                elif heading_level <= 6:  # h4-h6
-                    p.font.size = Pt(24)
-                    p.font.bold = True
+                
+                # 本文用のテキストフレームを初期化（まだ作られていない場合）
+                if not text_frame and slide.placeholders[1]:
+                    text_frame = slide.placeholders[1].text_frame
+                    text_frame.word_wrap = True
+                
+                if text_frame:
+                    p = text_frame.add_paragraph()
+                    apply_text_styles(p, content)
+                    # 見出しレベルに応じてスタイルを設定
+                    if heading_level == 2:  # h2
+                        print(f"  Setting h2 style for: '{content}'")
+                        p.font.size = Pt(32)
+                        p.font.bold = True
+                    elif heading_level == 3:  # h3
+                        print(f"  Setting h3 style for: '{content}'")
+                        p.font.size = Pt(28)
+                        p.font.bold = True
+                    elif heading_level <= 6:  # h4-h6
+                        print(f"  Setting h4-6 style for: '{content}'")
+                        p.font.size = Pt(24)
+                        p.font.bold = True
             else:
+                print(f"Adding to content: '{line}'")
                 content_lines.append(line)
         
         # タイトルを設定
