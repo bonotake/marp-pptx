@@ -7,7 +7,12 @@ from pathlib import Path
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 
-def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
+def convert_marp_to_pptx(input_file: Path, output_file: Path, debug: bool = False) -> None:
+    # デバッグ出力用のヘルパー関数
+    def debug_print(*args, **kwargs):
+        if debug:
+            print(*args, **kwargs)
+    
     # 設定値
     INDENT_SPACES = 2  # インデントの字数（Marpのデフォルトは2スペース）
     
@@ -105,7 +110,7 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
         if not slide_content.strip():
             continue
         
-        print(f"=== Slide {i} ===")
+        debug_print(f"=== Slide {i} ===")
         
         # 全体を1つの文字列として処理
         content = '\n'.join(slide_content.strip().split('\n'))
@@ -147,12 +152,12 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
         for line in lines:
             # h1（#）をスライドタイトルとして処理
             if not title and line.strip().startswith('# '):
-                print(f"Found title: '{line}'")
+                debug_print(f"Found title: '{line}'")
                 title = line.strip('#').strip()
             # h2-h6（## ～ ######）を本文の見出しとして処理
             elif line.strip().startswith('#'):
-                print(f"Found heading: '{line}'")
-                heading_level = len(line.split()[0])  # #の数を数える
+                debug_print(f"Found heading: '{line}'")
+                heading_level = len(line.split()[0])
                 content = line.strip('#').strip()
                 
                 # 本文用のテキストフレームを初期化（まだ作られていない場合）
@@ -165,19 +170,21 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
                     apply_text_styles(p, content)
                     # 見出しレベルに応じてスタイルを設定
                     if heading_level == 2:  # h2
-                        print(f"  Setting h2 style for: '{content}'")
+                        debug_print(f"  Setting h2 style for: '{content}'")
                         p.font.size = Pt(32)
                         p.font.bold = True
                     elif heading_level == 3:  # h3
-                        print(f"  Setting h3 style for: '{content}'")
+                        debug_print(f"  Setting h3 style for: '{content}'")
                         p.font.size = Pt(28)
                         p.font.bold = True
                     elif heading_level <= 6:  # h4-h6
-                        print(f"  Setting h4-6 style for: '{content}'")
+                        debug_print(f"  Setting h4-6 style for: '{content}'")
                         p.font.size = Pt(24)
                         p.font.bold = True
+                else:
+                    debug_print("Warning: text_frame is not initialized")
             else:
-                print(f"Adding to content: '{line}'")
+                debug_print(f"Adding to content: '{line}'")
                 content_lines.append(line)
         
         # タイトルを設定
@@ -215,9 +222,15 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
     prs.save(str(output_file))
 
 if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Convert Marp markdown to PowerPoint')
+    parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    args = parser.parse_args()
+    
     load_dotenv()
     work_folder: Path = Path(os.getenv("WORK_FOLDER"))
     input_file: Path = work_folder / Path("main.md")
     output_file: Path = work_folder / Path("presentation.pptx")
-    convert_marp_to_pptx(input_file, output_file)
+    convert_marp_to_pptx(input_file, output_file, debug=args.debug)
 
