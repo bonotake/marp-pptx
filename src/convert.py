@@ -8,6 +8,9 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 
 def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
+    # 設定値
+    INDENT_SPACES = 2  # インデントの字数（Marpのデフォルトは2スペース）
+    
     # 新しいプレゼンテーションを作成
     prs = Presentation()
     prs.slide_width = Inches(16)
@@ -143,12 +146,17 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
             body_shape.height = Inches(6.5)  # 9 - 2 - 0.5
             
             text_frame = body_shape.text_frame
+            text_frame.word_wrap = True
+            
             for line in content_lines:
                 p = text_frame.add_paragraph()
                 # Markdownの箇条書きを変換
                 if line.strip().startswith('- '):
+                    # インデントの深さを計算
+                    indent_level = (len(line) - len(line.lstrip())) // INDENT_SPACES
                     p.text = line.strip('- ').strip()
-                    p.level = 1
+                    p.level = indent_level
+                    p.bullet = True
                 else:
                     p.text = line.strip()
     
