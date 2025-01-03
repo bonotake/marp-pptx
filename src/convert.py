@@ -8,30 +8,29 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 
 def convert_marp_to_pptx(input_file: Path, output_file: Path, debug: bool = False) -> None:
-    # デバッグ出力用のヘルパー関数
+    # Helper function for debug output
     def debug_print(*args, **kwargs):
         if debug:
             print(*args, **kwargs)
     
-    # 設定値
-    INDENT_SPACES = 2  # インデントの字数（Marpのデフォルトは2スペース）
+    # Configuration values
+    INDENT_SPACES = 2  # Number of spaces for indentation (Marp default is 2 spaces)
     
     def apply_text_styles(p, text):
-        """段落にテキストスタイルを適用する"""
-        # スタイルマーカーとその適用方法を定義
+        """Apply text styles to paragraph"""
+        # Define style markers and their application methods
         style_markers = [
-            ('**', lambda run: setattr(run.font, 'bold', True)),         # 太字
-            ('~~', lambda run: setattr(run.font, 'strike', True)),       # 打消し線
-            ('*', lambda run: setattr(run.font, 'italic', True))         # イタリック
+            ('**', lambda run: setattr(run.font, 'bold', True)),         # Bold
+            ('~~', lambda run: setattr(run.font, 'strike', True)),       # Strikethrough
+            ('*', lambda run: setattr(run.font, 'italic', True))         # Italic
         ]
-        
-        # 現在のテキストとその位置を追跡
+        # Track current text and position
         current_text = text
         current_pos = 0
-        p.text = ""  # 段落を空にする
+        p.text = ""  # Clear the paragraph
         
         while current_text:
-            # 最も近いマーカーとその位置を見つける
+            # Find the nearest marker and its position
             next_marker = None
             next_pos = len(current_text)
             
@@ -41,60 +40,60 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path, debug: bool = Fals
                     next_marker = marker
                     next_pos = pos
             
-            # マーカーが見つからない場合、残りのテキストを追加して終了
+            # If no marker found, add remaining text and exit
             if next_marker is None:
                 if current_text:
                     run = p.add_run()
                     run.text = current_text
                 break
             
-            # マーカーまでのテキストを追加
+            # Add text up to the marker
             if next_pos > 0:
                 run = p.add_run()
                 run.text = current_text[:next_pos]
             
-            # マーカーの終わりを探す
+            # Find end of marker
             end_pos = current_text.find(next_marker, next_pos + len(next_marker))
-            if end_pos == -1:  # 閉じマーカーが見つからない
+            if end_pos == -1:  # No closing marker found
                 run = p.add_run()
                 run.text = current_text[next_pos:]
                 break
             
-            # スタイル適用されたテキストを追加
+            # Add styled text
             styled_text = current_text[next_pos + len(next_marker):end_pos]
             run = p.add_run()
             run.text = styled_text
             
-            # スタイルを適用
+            # Apply style
             for marker, apply_style in style_markers:
                 if marker == next_marker:
                     apply_style(run)
             
-            # 残りのテキストを更新
+            # Update remaining text
             current_text = current_text[end_pos + len(next_marker):]
     
-    # 新しいプレゼンテーションを作成
+    # Create new presentation
     prs = Presentation()
     prs.slide_width = Inches(16)
     prs.slide_height = Inches(9)
     
-    # Marpファイルを読み込む
+    # Load Marp file
     with open(input_file, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # スライドを分割
+    # Split into slides
     slides = content.split('---')
     
-    # フロントマターを除去（最初の要素を無視）
-    slides = slides[2:]  # 最初の2つの要素（空要素とフロントマター）を除外
+    # Remove frontmatter (ignore first element)
+    slides = slides[2:]  # Skip first two elements (empty and frontmatter)
     
-    # CSSスタイルを解析
+    # Parse CSS styles
     style_definitions = {}
     css_pattern = re.compile(r'<style[^>]*>(.*?)</style>', re.DOTALL)
     css_matches = css_pattern.findall(content)
     
     for css in css_matches:
-        # クラス定義を探す（例: .class-name { property: value; }）
+        # Look for class definitions (e.g. .class-name { property: value; })
         class_pattern = re.compile(r'\.([^{]+){([^}]+)}')
         for match in class_pattern.finditer(css):
             class_name = match.group(1).strip()
@@ -106,17 +105,17 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path, debug: bool = Fals
             )
     
     for i, slide_content in enumerate(slides):
-        # 空のスライドをスキップ
+        # Skip empty slides
         if not slide_content.strip():
             continue
         
         debug_print(f"=== Slide {i} ===")
         
-        # 全体を1つの文字列として処理
+        # Process entire content as one string
         content = '\n'.join(slide_content.strip().split('\n'))
         div_pattern = re.compile(r'<div\s+(?:class|style)=["\']([^"\']+)["\']>(.*?)</div>', re.DOTALL)
         
-        # divタグを処理
+        # Process div tags
         while True:
             div_match = div_pattern.search(content)
             if not div_match:
@@ -124,43 +123,43 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path, debug: bool = Fals
             
             class_name = div_match.group(1)
             div_content = div_match.group(2).strip()
-            # divタグを内容で置換
+            # Replace div tag with content
             content = content[:div_match.start()] + div_content + content[div_match.end():]
         
-        # 処理後の内容を行に分割
+        # Split processed content into lines
         lines = content.split('\n')
         
-        # レイアウトの選択
+        # Select layout
         non_empty_lines = [line for line in lines if line.strip()]
         if i == 0:
-            layout = prs.slide_layouts[0]  # タイトルスライド
+            layout = prs.slide_layouts[0]  # Title slide
         elif len(non_empty_lines) == 1 and non_empty_lines[0].strip().startswith('# '):
-            layout = prs.slide_layouts[2]  # セクションヘッダー
+            layout = prs.slide_layouts[2]  # Section header
         else:
-            layout = prs.slide_layouts[1]  # タイトルと本文
+            layout = prs.slide_layouts[1]  # Title and body
             
         slide = prs.slides.add_slide(layout)
         
-        # タイトルを探す（# で始まる最初の行）
+        # Look for title (first line starting with #)
         title = ""
         content_lines = []
         
-        # タイトルプレースホルダーを取得
+        # Get title placeholder
         title_shape = slide.shapes.title
         text_frame = None
         
         for line in lines:
-            # h1（#）をスライドタイトルとして処理
+            # Process h1 (#) as slide title
             if not title and line.strip().startswith('# '):
                 debug_print(f"Found title: '{line}'")
                 title = line.strip('#').strip()
-            # h2-h6（## ～ ######）を本文の見出しとして処理
+            # Process h2-h6 (## to ######) as body headings
             elif line.strip().startswith('#'):
                 debug_print(f"Found heading: '{line}'")
                 heading_level = len(line.split()[0])
                 content = line.strip('#').strip()
                 
-                # 本文用のテキストフレームを初期化（まだ作られていない場合）
+                # Initialize text frame for body (if not created yet)
                 if not text_frame and slide.placeholders[1]:
                     text_frame = slide.placeholders[1].text_frame
                     text_frame.word_wrap = True
@@ -168,7 +167,7 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path, debug: bool = Fals
                 if text_frame:
                     p = text_frame.add_paragraph()
                     apply_text_styles(p, content)
-                    # 見出しレベルに応じてスタイルを設定
+                    # Set style based on heading level
                     if heading_level == 2:  # h2
                         debug_print(f"  Setting h2 style for: '{content}'")
                         p.font.size = Pt(32)
@@ -187,7 +186,7 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path, debug: bool = Fals
                 debug_print(f"Adding to content: '{line}'")
                 content_lines.append(line)
         
-        # タイトルを設定
+        # Set title
         if title and slide.shapes.title:
             title_shape = slide.shapes.title
             title_shape.left = Inches(0.5)
@@ -195,7 +194,7 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path, debug: bool = Fals
             title_shape.width = Inches(15)  # 16 - (0.5 * 2)
             title_shape.text = title
             
-        # 本文を設定
+        # Set body text
         if content_lines and slide.placeholders[1]:
             body_shape = slide.placeholders[1]
             body_shape.left = Inches(0.5)
@@ -218,7 +217,7 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path, debug: bool = Fals
                     text = line.strip()
                     apply_text_styles(p, text)
     
-    # PowerPointファイルを保存
+    # Save PowerPoint file
     prs.save(str(output_file))
 
 if __name__ == "__main__":
