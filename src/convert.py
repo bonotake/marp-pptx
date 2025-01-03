@@ -105,14 +105,26 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
         if not slide_content.strip():
             continue
         
-        # スライドの内容を解析
-        lines = slide_content.strip().split('\n')
-        non_empty_lines = [line for line in lines if line.strip()]
+        # 全体を1つの文字列として処理
+        content = '\n'.join(slide_content.strip().split('\n'))
+        div_pattern = re.compile(r'<div\s+(?:class|style)=["\']([^"\']+)["\']>(.*?)</div>', re.DOTALL)
+        
+        # divタグを処理
+        while True:
+            div_match = div_pattern.search(content)
+            if not div_match:
+                break
+            
+            class_name = div_match.group(1)
+            div_content = div_match.group(2).strip()
+            # divタグを内容で置換
+            content = content[:div_match.start()] + div_content + content[div_match.end():]
+        
+        # 処理後の内容を行に分割
+        lines = content.split('\n')
         
         # レイアウトの選択
-        # 1. 最初のスライドはタイトルレイアウト
-        # 2. h1のみのスライドはセクションヘッダー
-        # 3. それ以外は通常のレイアウト
+        non_empty_lines = [line for line in lines if line.strip()]
         if i == 0:
             layout = prs.slide_layouts[0]  # タイトルスライド
         elif len(non_empty_lines) == 1 and non_empty_lines[0].strip().startswith('# '):
@@ -134,7 +146,7 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
                 heading_level = len(line.split()[0])  # #の数を数える
                 content = line.strip('#').strip()
                 p = text_frame.add_paragraph()
-                p.text = content
+                apply_text_styles(p, content)
                 # 見出しレベルに応じてスタイルを設定
                 if heading_level == 2:  # h2
                     p.font.size = Pt(32)
@@ -146,45 +158,7 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
                     p.font.size = Pt(24)
                     p.font.bold = True
             else:
-                # 既存のdivタグ処理とその他のコンテンツ処理
-                div_pattern = re.compile(r'<div\s+class=["\']([^"\']+)["\']>(.*?)</div>', re.DOTALL)
-                div_match = div_pattern.match(line.strip())
-                
-                if div_match:
-                    class_name = div_match.group(1)
-                    content = div_match.group(2).strip()
-                    
-                    # スタイルの適用
-                    p = text_frame.add_paragraph()
-                    p.text = content
-                    
-                    if class_name in style_definitions:
-                        style = style_definitions[class_name]
-                        if 'color' in style:
-                            # カラーコードをRGBに変換
-                            color = style['color'].strip('#')
-                            if len(color) == 6:
-                                r = int(color[:2], 16)
-                                g = int(color[2:4], 16)
-                                b = int(color[4:], 16)
-                                p.font.color.rgb = RGBColor(r, g, b)
-                        
-                        if 'font-size' in style:
-                            # フォントサイズの設定（pxをポイントに変換）
-                            size = style['font-size'].replace('px', '')
-                            p.font.size = Pt(float(size))
-                            
-                        if 'text-align' in style:
-                            # テキストの配置
-                            align = style['text-align']
-                            if align == 'center':
-                                p.alignment = PP_ALIGN.CENTER
-                            elif align == 'right':
-                                p.alignment = PP_ALIGN.RIGHT
-                            elif align == 'left':
-                                p.alignment = PP_ALIGN.LEFT
-                else:
-                    content_lines.append(line)
+                content_lines.append(line)
         
         # タイトルを設定
         if title and slide.shapes.title:
