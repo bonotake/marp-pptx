@@ -11,6 +11,18 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
     # 設定値
     INDENT_SPACES = 2  # インデントの字数（Marpのデフォルトは2スペース）
     
+    def apply_bold_text(p, text):
+        """段落にボールドテキストを適用する"""
+        if '**' in text:
+            parts = text.split('**')
+            p.text = parts[0]  # 最初の通常テキスト
+            for i, part in enumerate(parts[1:], 1):
+                run = p.add_run()
+                run.text = part
+                run.font.bold = (i % 2 == 1)  # 奇数番目の部分を太字に
+        else:
+            p.text = text
+    
     # 新しいプレゼンテーションを作成
     prs = Presentation()
     prs.slide_width = Inches(16)
@@ -150,15 +162,16 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
             
             for line in content_lines:
                 p = text_frame.add_paragraph()
-                # Markdownの箇条書きを変換
                 if line.strip().startswith('- '):
                     # インデントの深さを計算
                     indent_level = (len(line) - len(line.lstrip())) // INDENT_SPACES
-                    p.text = line.strip('- ').strip()
+                    text = line.strip('- ').strip()
+                    apply_bold_text(p, text)
                     p.level = indent_level
                     p.bullet = True
                 else:
-                    p.text = line.strip()
+                    text = line.strip()
+                    apply_bold_text(p, text)
     
     # PowerPointファイルを保存
     prs.save(str(output_file))
