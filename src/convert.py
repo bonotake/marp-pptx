@@ -11,17 +11,62 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
     # 設定値
     INDENT_SPACES = 2  # インデントの字数（Marpのデフォルトは2スペース）
     
-    def apply_bold_text(p, text):
-        """段落にボールドテキストを適用する"""
-        if '**' in text:
-            parts = text.split('**')
-            p.text = parts[0]  # 最初の通常テキスト
-            for i, part in enumerate(parts[1:], 1):
+    def apply_text_styles(p, text):
+        """段落にテキストスタイルを適用する"""
+        # スタイルマーカーとその適用方法を定義
+        style_markers = [
+            ('**', lambda run: setattr(run.font, 'bold', True)),         # 太字
+            ('~~', lambda run: setattr(run.font, 'strike', True)),       # 打消し線
+            ('*', lambda run: setattr(run.font, 'italic', True))         # イタリック
+        ]
+        
+        # 現在のテキストとその位置を追跡
+        current_text = text
+        current_pos = 0
+        p.text = ""  # 段落を空にする
+        
+        while current_text:
+            # 最も近いマーカーとその位置を見つける
+            next_marker = None
+            next_pos = len(current_text)
+            
+            for marker, _ in style_markers:
+                pos = current_text.find(marker)
+                if pos != -1 and pos < next_pos:
+                    next_marker = marker
+                    next_pos = pos
+            
+            # マーカーが見つからない場合、残りのテキストを追加して終了
+            if next_marker is None:
+                if current_text:
+                    run = p.add_run()
+                    run.text = current_text
+                break
+            
+            # マーカーまでのテキストを追加
+            if next_pos > 0:
                 run = p.add_run()
-                run.text = part
-                run.font.bold = (i % 2 == 1)  # 奇数番目の部分を太字に
-        else:
-            p.text = text
+                run.text = current_text[:next_pos]
+            
+            # マーカーの終わりを探す
+            end_pos = current_text.find(next_marker, next_pos + len(next_marker))
+            if end_pos == -1:  # 閉じマーカーが見つからない
+                run = p.add_run()
+                run.text = current_text[next_pos:]
+                break
+            
+            # スタイル適用されたテキストを追加
+            styled_text = current_text[next_pos + len(next_marker):end_pos]
+            run = p.add_run()
+            run.text = styled_text
+            
+            # スタイルを適用
+            for marker, apply_style in style_markers:
+                if marker == next_marker:
+                    apply_style(run)
+            
+            # 残りのテキストを更新
+            current_text = current_text[end_pos + len(next_marker):]
     
     # 新しいプレゼンテーションを作成
     prs = Presentation()
@@ -163,15 +208,14 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
             for line in content_lines:
                 p = text_frame.add_paragraph()
                 if line.strip().startswith('- '):
-                    # インデントの深さを計算
                     indent_level = (len(line) - len(line.lstrip())) // INDENT_SPACES
                     text = line.strip('- ').strip()
-                    apply_bold_text(p, text)
+                    apply_text_styles(p, text)
                     p.level = indent_level
                     p.bullet = True
                 else:
                     text = line.strip()
-                    apply_bold_text(p, text)
+                    apply_text_styles(p, text)
     
     # PowerPointファイルを保存
     prs.save(str(output_file))
