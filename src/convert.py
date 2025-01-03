@@ -20,9 +20,8 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
     # スライドを分割
     slides = content.split('---')
     
-    # フロントマターを除去
-    if slides[0].strip().startswith('---'):
-        slides = slides[1:]
+    # フロントマターを除去（最初の要素を無視）
+    slides = slides[2:]
     
     # CSSスタイルを解析
     style_definitions = {}
@@ -41,16 +40,27 @@ def convert_marp_to_pptx(input_file: Path, output_file: Path) -> None:
                 if ':' in prop
             )
     
-    for slide_content in slides:
+    for i, slide_content in enumerate(slides):
         # 空のスライドをスキップ
         if not slide_content.strip():
             continue
-            
-        # 新しいスライドを追加
-        slide = prs.slides.add_slide(prs.slide_layouts[1])  # タイトルと本文のレイアウト
         
         # スライドの内容を解析
         lines = slide_content.strip().split('\n')
+        non_empty_lines = [line for line in lines if line.strip()]
+        
+        # レイアウトの選択
+        # 1. 最初のスライドはタイトルレイアウト
+        # 2. h1のみのスライドはセクションヘッダー
+        # 3. それ以外は通常のレイアウト
+        if i == 0:
+            layout = prs.slide_layouts[0]  # タイトルスライド
+        elif len(non_empty_lines) == 1 and non_empty_lines[0].strip().startswith('# '):
+            layout = prs.slide_layouts[2]  # セクションヘッダー
+        else:
+            layout = prs.slide_layouts[1]  # タイトルと本文
+            
+        slide = prs.slides.add_slide(layout)
         
         # タイトルを探す（# で始まる最初の行）
         title = ""
